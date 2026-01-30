@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Movie / Series Details</title>
+    <link rel="stylesheet" href="movies.css">
+</head>
+<body>
+
+<button class="back-btn" onclick="history.back()">⬅ Back</button>
+
+<div id="movie-details"></div>
+
+<!-- PLAYER -->
+<div class="player-section">
+    <div class="player-wrapper" onclick="playMovie()">
+        <div class="play-overlay">▶</div>
+
+        <iframe
+            id="player-frame"
+            allowfullscreen
+            frameborder="0">
+        </iframe>
+    </div>
+
+    <!-- SERIES CONTROLS -->
+    <div class="series-controls" id="series-controls" style="display:none;">
+        <select id="seasonSelect" onchange="loadEpisodes()">
+            <option value="">Select Season</option>
+        </select>
+
+        <select id="episodeSelect" onchange="playEpisode()">
+            <option value="">Select Episode</option>
+        </select>
+    </div>
+</div>
+
+<!-- CONTROLS -->
+<div class="player-controls">
+
+    <!-- DOWNLOAD -->
+    <button class="control-btn" onclick="downloadMovie()">
+        ⬇ Download
+    </button>
+
+    <!-- AUDIO -->
+     
+    <select class="control-select" onchange="changeAudio(this.value)">
+        <option value="">🎧 Audio</option>
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+    </select>
+
+    <!-- QUALITY -->
+    <!-- <select class="control-select" onchange="changeQuality(this.value)">
+        <option value="">⚙ Quality</option>
+        <option value="360">360p</option>
+        <option value="480">480p</option>
+        <option value="720">720p</option>
+        <option value="1080">1080p</option>
+    </select> -->
+
+</div>
+
+<h2>Suggested</h2>
+<div id="suggestions" class="movie-grid"></div>
+
+<script src="movie.js"></script>
+</body>
+</html>
