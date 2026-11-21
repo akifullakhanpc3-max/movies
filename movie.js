@@ -49,7 +49,7 @@ function loadDetails(id) {
 
 function loadMoviePlayer(id) {
     document.getElementById('player-frame').src =
-        `https://vidsrc-embed.ru/embed/movie?imdb=${id}&autoplay=0`;
+        `https://vidsrc.mov/embed/movie/${id}&autoplay=0`;
 }
 
 /* ================= SERIES ================= */
