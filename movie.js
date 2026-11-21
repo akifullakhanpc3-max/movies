@@ -5,7 +5,7 @@
 ===================================================== */
 
 // IMPORTANT: Insert your activated OMDb API key.
-const OMDB_API_KEY = "YOUR_OMDB_API_KEY";
+const OMDB_API_KEY = "b9b1f1ed";
 
 const OMDB_BASE = "https://www.omdbapi.com/";
 
