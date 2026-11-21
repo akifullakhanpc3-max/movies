@@ -2,14 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Movie / Series Details</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie / Series Details - MovieFlix</title>
     <link rel="stylesheet" href="movies.css">
 </head>
 <body>
 
 <button class="back-btn" onclick="window.location.href='./index.html'">⬅ Back</button>
 
-<div id="movie-details"></div>
+<div id="movie-details">
+    <p class="loading">Loading movie details...</p>
+</div>
 
 <!-- PLAYER -->
 <div class="player-section">
@@ -37,36 +40,17 @@
 
 <!-- CONTROLS -->
 <div class="player-controls">
-
-    <!-- DOWNLOAD -->
-    <button class="control-btn" onclick="downloadMovie()">
-        ⬇ Download
-    </button>
-
-    <!-- AUDIO -->
-     
-    <select class="control-select" onchange="changeAudio(this.value)">
-        <option value="">🎧 Audio</option>
-        <option value="en">English</option>
-        <option value="hi">Hindi</option>
-        <option value="ta">Tamil</option>
-        <option value="te">Telugu</option>
-    </select>
-
-    <!-- QUALITY -->
-    <!-- <select class="control-select" onchange="changeQuality(this.value)">
-        <option value="">⚙ Quality</option>
-        <option value="360">360p</option>
-        <option value="480">480p</option>
-        <option value="720">720p</option>
-        <option value="1080">1080p</option>
-    </select> -->
-
+    <div class="audio-controls" id="audio-controls" style="display:none;">
+        <button onclick="changeAudio(1)">English</button>
+        <button onclick="changeAudio(2)">Hindi</button>
+        <button onclick="changeAudio(3)">Dual Audio</button>
+    </div>
 </div>
 
 <h2>Suggested</h2>
 <div id="suggestions" class="movie-grid"></div>
 
 <script src="movie.js"></script>
+
 </body>
 </html>

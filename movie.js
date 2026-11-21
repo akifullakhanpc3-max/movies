@@ -1,12 +1,63 @@
-const OMDB_API_KEY = 'b9b1f1ed';
-const OMDB_BASE = 'https://www.omdbapi.com/';
+/* ================= CONFIG ================= */
+
+const CONFIG = {
+    OMDB_API_KEY: 'b9b1f1ed',
+    OMDB_BASE: 'https://www.omdbapi.com/',
+    PLACEHOLDER_POSTER: 'https://via.placeholder.com/300x450',
+    VIDSRC_BASE: 'https://vidsrc.mov/embed',
+    PROVIDER: {
+        name: 'vidsrc',
+        authorized: true,
+        supportsAudio: false,
+        supportsQuality: false
+    }
+};
+
+/* ================= HELPERS ================= */
+
+function escapeHtml(text) {
+    if (text == null) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+function showLoading(container) {
+    if (!container) return;
+    container.innerHTML = '<p class="loading">Loading...</p>';
+}
+
+function showError(container, msg) {
+    if (!container) return;
+    container.innerHTML = `<p class="error">${escapeHtml(msg)}</p>`;
+}
+
+function getPoster(poster) {
+    return poster && poster !== 'N/A' ? poster : CONFIG.PLACEHOLDER_POSTER;
+}
+
+function isApiKeyError(msg) {
+    return msg && /invalid api key|api key/i.test(String(msg));
+}
+
+/* ================= URL PARAM ================= */
 
 const params = new URLSearchParams(window.location.search);
 const imdbID = params.get('imdb');
 
+/* ================= STATE ================= */
+
 let currentType = 'movie'; // movie | series
 let currentSeason = null;
 let currentEpisode = null;
+let currentServer = 1;
+
+/* ================= INIT ================= */
+
+const audioControls = document.getElementById('audio-controls');
+if (audioControls) {
+    audioControls.style.display = CONFIG.PROVIDER.supportsAudio ? 'flex' : 'none';
+}
 
 if (!imdbID) {
     document.body.innerHTML = '<h2 style="padding:40px">Content not found</h2>';
@@ -14,209 +65,200 @@ if (!imdbID) {
     loadDetails(imdbID);
 }
 
-/* ================= DETAILS ================= */
+/* ================= LOAD DETAILS ================= */
 
 function loadDetails(id) {
-    fetch(`${OMDB_BASE}?i=${id}&apikey=${OMDB_API_KEY}`)
-        .then(res => res.json())
+    const container = document.getElementById('movie-details');
+    showLoading(container);
+
+    fetch(`${CONFIG.OMDB_BASE}?i=${encodeURIComponent(id)}&apikey=${CONFIG.OMDB_API_KEY}`)
+        .then(res => {
+            if (!res.ok) throw new Error('API request failed');
+            return res.json();
+        })
         .then(data => {
+            if (data.Response !== 'True') {
+                const msg = data.Error || 'Content not found.';
+                if (isApiKeyError(msg)) {
+                    showError(container, 'Invalid OMDb API key. Please configure a valid API key on the backend.');
+                } else {
+                    showError(container, msg);
+                }
+                return;
+            }
 
-            document.getElementById('movie-details').innerHTML = `
-                <img src="${data.Poster !== 'N/A' ? data.Poster : 'https://via.placeholder.com/300x450'}">
-                <div class="movie-info">
-                    <h1>${data.Title} (${data.Year})</h1>
-                    <span class="rating">⭐ ${data.imdbRating}</span>
-                    <p><b>Genre:</b> ${data.Genre}</p>
-                    <p><b>Director:</b> ${data.Director}</p>
-                    <p><b>Cast:</b> ${data.Actors}</p>
-                    <p><b>Plot:</b> ${data.Plot}</p>
-                </div>
-            `;
+            currentType = data.Type === 'series' ? 'series' : 'movie';
+            const totalSeasons = data.Type === 'series'
+                ? parseInt(data.totalSeasons, 10) || 0
+                : 0;
 
-            if (data.Type === 'series') {
-                currentType = 'series';
-                setupSeries(id, data.totalSeasons);
+            renderDetails(data);
+
+            if (currentType === 'series') {
+                setupSeries(id, totalSeasons);
             } else {
-                currentType = 'movie';
                 loadMoviePlayer(id);
             }
 
-            loadSuggestions(data.Genre);
+            loadSuggestions(data.Genre || '');
+        })
+        .catch(err => {
+            showError(container, 'Failed to load movie details. Please try again later.');
+            console.error(err);
         });
+}
+
+function renderDetails(data) {
+    const container = document.getElementById('movie-details');
+    const poster = getPoster(data.Poster);
+
+    container.innerHTML = `
+        <img src="${escapeHtml(poster)}" alt="${escapeHtml(data.Title)} poster">
+        <div class="movie-info">
+            <h1>${escapeHtml(data.Title)} (${escapeHtml(data.Year)})</h1>
+            <span class="rating">⭐ ${escapeHtml(data.imdbRating === 'N/A' ? 'N/A' : data.imdbRating)}</span>
+            <p><b>Type:</b> ${escapeHtml(data.Type === 'N/A' ? 'N/A' : data.Type)}</p>
+            <p><b>Released:</b> ${escapeHtml(data.Released === 'N/A' ? 'N/A' : data.Released)}</p>
+            <p><b>Runtime:</b> ${escapeHtml(data.Runtime === 'N/A' ? 'N/A' : data.Runtime)}</p>
+            <p><b>Language:</b> ${escapeHtml(data.Language === 'N/A' ? 'N/A' : data.Language)}</p>
+            <p><b>Genre:</b> ${escapeHtml(data.Genre === 'N/A' ? 'N/A' : data.Genre)}</p>
+            <p><b>Director:</b> ${escapeHtml(data.Director === 'N/A' ? 'N/A' : data.Director)}</p>
+            <p><b>Cast:</b> ${escapeHtml(data.Actors === 'N/A' ? 'N/A' : data.Actors)}</p>
+            <p><b>Plot:</b> ${escapeHtml(data.Plot === 'N/A' ? 'No plot available.' : data.Plot)}</p>
+        </div>
+    `;
 }
 
 /* ================= PLAYER ================= */
 
+function buildPlayerUrl(type, id, season, episode) {
+    if (!CONFIG.PROVIDER.authorized) {
+        return null;
+    }
+    if (type === 'series' && season && episode) {
+        return `${CONFIG.VIDSRC_BASE}/tv/${id}/${season}/${episode}`;
+    }
+    return `${CONFIG.VIDSRC_BASE}/movie/${id}`;
+}
+
 function loadMoviePlayer(id) {
-    document.getElementById('player-frame').src =
-        `https://vidsrc-embed.ru/embed/movie?imdb=${id}&autoplay=0`;
+    const url = buildPlayerUrl('movie', id);
+    if (!url) return;
+    document.getElementById('player-frame').src = url;
 }
 
 /* ================= SERIES ================= */
 
 function setupSeries(imdbID, totalSeasons) {
-    document.getElementById('series-controls').style.display = 'flex';
-
+    const seriesControls = document.getElementById('series-controls');
     const seasonSelect = document.getElementById('seasonSelect');
+    seriesControls.style.display = 'flex';
     seasonSelect.innerHTML = '<option value="">Select Season</option>';
 
     for (let i = 1; i <= totalSeasons; i++) {
-        seasonSelect.innerHTML += `<option value="${i}">Season ${i}</option>`;
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `Season ${i}`;
+        seasonSelect.appendChild(option);
     }
 }
 
 function loadEpisodes() {
     currentSeason = document.getElementById('seasonSelect').value;
+    currentEpisode = null;
+    const episodeSelect = document.getElementById('episodeSelect');
+    episodeSelect.innerHTML = '<option value="">Select Episode</option>';
+
     if (!currentSeason) return;
 
-    fetch(`${OMDB_BASE}?i=${imdbID}&Season=${currentSeason}&apikey=${OMDB_API_KEY}`)
+    fetch(`${CONFIG.OMDB_BASE}?i=${encodeURIComponent(imdbID)}&Season=${encodeURIComponent(currentSeason)}&apikey=${CONFIG.OMDB_API_KEY}`)
         .then(res => res.json())
         .then(data => {
-            const episodeSelect = document.getElementById('episodeSelect');
-            episodeSelect.innerHTML = '<option value="">Select Episode</option>';
-
+            if (data.Response !== 'True' || !data.Episodes) return;
             data.Episodes.forEach(ep => {
-                episodeSelect.innerHTML += `
-                    <option value="${ep.Episode}">
-                        Ep ${ep.Episode} - ${ep.Title}
-                    </option>
-                `;
+                const option = document.createElement('option');
+                option.value = ep.Episode;
+                option.textContent = `Ep ${ep.Episode} - ${escapeHtml(ep.Title)}`;
+                episodeSelect.appendChild(option);
             });
-        });
+        })
+        .catch(() => {});
 }
 
 function playEpisode() {
     currentEpisode = document.getElementById('episodeSelect').value;
     if (!currentSeason || !currentEpisode) return;
-
-    document.getElementById('player-frame').src =
-        `https://vidsrc-embed.ru/embed/tv?imdb=${imdbID}&season=${currentSeason}&episode=${currentEpisode}&autoplay=1`;
-
-    document.querySelector('.player-wrapper').classList.add('playing');
+    reloadPlayer();
 }
 
-/* ================= PLAY BUTTON ================= */
+/* ================= PLAY ================= */
 
 function playMovie() {
-    const wrapper = document.querySelector('.player-wrapper');
-    const iframe = document.getElementById('player-frame');
+    document.querySelector('.player-wrapper').classList.add('playing');
+    reloadPlayer();
+}
 
-    if (!wrapper.classList.contains('playing')) {
-        wrapper.classList.add('playing');
-        iframe.src = iframe.src.replace('autoplay=0', 'autoplay=1');
+/* ================= AUDIO (SERVER SWITCH) ================= */
+
+function changeAudio(serverNumber) {
+    if (!CONFIG.PROVIDER.supportsAudio) return;
+    if (!serverNumber) return;
+    currentServer = serverNumber;
+    reloadPlayer();
+}
+
+/* ================= RELOAD PLAYER ================= */
+
+function reloadPlayer() {
+    const frame = document.getElementById('player-frame');
+    const url = buildPlayerUrl(currentType, imdbID, currentSeason, currentEpisode);
+    if (!url) {
+        frame.src = '';
+        return;
     }
-}
-
-/* ================= DOWNLOAD ================= */
-
-function downloadMovie() {
-    const link =
-        currentType === 'series' && currentSeason && currentEpisode
-            ? `https://vidsrc-embed.ru/embed/tv?imdb=${imdbID}&season=${currentSeason}&episode=${currentEpisode}`
-            : `https://vidsrc-embed.ru/embed/movie?imdb=${imdbID}`;
-
-    navigator.clipboard.writeText(link).then(() => {
-        alert("Link copied!\nPaste it on SaveFrom to download.");
-        window.open('https://en1.savefrom.net/16xF/', '_blank');
-    });
-}
-
-/* ================= AUDIO ================= */
-
-function changeAudio(lang) {
-    if (!lang) return;
-    reloadPlayer({ audio: lang });
-}
-
-/* ================= QUALITY ================= */
-
-function changeQuality(quality) {
-    if (!quality) return;
-    reloadPlayer({ quality: quality });
-}
-
-/* ================= RELOAD PLAYER (SAFE) ================= */
-
-function reloadPlayer(options = {}) {
-    let baseUrl = '';
-
-    if (currentType === 'series' && currentSeason && currentEpisode) {
-        baseUrl = `https://vidsrc-embed.ru/embed/tv?imdb=${imdbID}&season=${currentSeason}&episode=${currentEpisode}`;
-    } else {
-        baseUrl = `https://vidsrc-embed.ru/embed/movie?imdb=${imdbID}`;
-    }
-
-    let params = ['autoplay=1'];
-
-    if (options.audio) params.push(`lang=${options.audio}`);
-    if (options.quality) params.push(`quality=${options.quality}`);
-
-    document.getElementById('player-frame').src =
-        baseUrl + '&' + params.join('&');
-
+    frame.src = url;
     document.querySelector('.player-wrapper').classList.add('playing');
 }
 
 /* ================= SUGGESTIONS ================= */
 
 function loadSuggestions(genre) {
-    const keyword = genre.split(',')[0];
+    const box = document.getElementById('suggestions');
+    const keyword = genre.split(',')[0].trim();
 
-    fetch(`${OMDB_BASE}?s=${keyword}&apikey=${OMDB_API_KEY}`)
+    if (!keyword || keyword === 'N/A') {
+        box.innerHTML = '';
+        return;
+    }
+
+    box.innerHTML = '<p class="loading">Loading recommendations...</p>';
+
+    fetch(`${CONFIG.OMDB_BASE}?s=${encodeURIComponent(keyword)}&apikey=${CONFIG.OMDB_API_KEY}`)
         .then(res => res.json())
         .then(data => {
-            if (data.Response !== 'True') return;
-
-            const box = document.getElementById('suggestions');
             box.innerHTML = '';
+            if (data.Response !== 'True' || !data.Search) return;
 
             data.Search.slice(0, 6).forEach(item => {
-                box.innerHTML += `
-                    <div class="movie-card" onclick="openMovie('${item.imdbID}')">
-                        <img src="${item.Poster !== 'N/A' ? item.Poster : 'https://via.placeholder.com/200x300'}">
-                        <h3>${item.Title}</h3>
-                    </div>
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                card.addEventListener('click', () => openMovie(item.imdbID));
+                const poster = getPoster(item.Poster);
+                card.innerHTML = `
+                    <img src="${escapeHtml(poster)}" alt="${escapeHtml(item.Title)}">
+                    <h3>${escapeHtml(item.Title)}</h3>
+                    <p>${escapeHtml(item.Year)}</p>
                 `;
+                box.appendChild(card);
             });
+        })
+        .catch(() => {
+            box.innerHTML = '';
         });
 }
 
 /* ================= NAVIGATION ================= */
 
 function openMovie(id) {
-    window.location.href = `movie.html?imdb=${id}`;
-}
-function changeAudio(lang) {
-    if (!lang) return;
-    reloadPlayer({ audio: lang });
-}
-function changeQuality(quality) {
-    if (!quality) return;
-    reloadPlayer({ quality: quality });
-}
-function reloadPlayer(options = {}) {
-    let baseUrl = '';
-    let params = [];
-
-    // Detect movie or series
-    if (currentType === 'series' && currentSeason && currentEpisode) {
-        baseUrl = `https://vidsrc-embed.ru/embed/tv?imdb=${imdbID}&season=${currentSeason}&episode=${currentEpisode}`;
-    } else {
-        baseUrl = `https://vidsrc-embed.ru/embed/movie?imdb=${imdbID}`;
-    }
-
-    params.push('autoplay=1');
-
-    if (options.audio) {
-        params.push(`lang=${options.audio}`);
-    }
-
-    if (options.quality) {
-        params.push(`quality=${options.quality}`);
-    }
-
-    document.getElementById('player-frame').src =
-        baseUrl + '&' + params.join('&');
-
-    document.querySelector('.player-wrapper').classList.add('playing');
+    window.location.href = `movie.html?imdb=${encodeURIComponent(id)}`;
 }

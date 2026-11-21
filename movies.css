@@ -229,6 +229,45 @@ h2 {
     z-index: 20;
 }
 
+/* ================= LOADING / ERROR ================= */
+
+.loading,
+.error {
+    text-align: center;
+    color: #aaa;
+    padding: 40px;
+    grid-column: 1 / -1;
+    font-size: 16px;
+}
+
+.error {
+    color: #ff6b6b;
+}
+
+/* ================= MOVIE INFO ================= */
+
+.movie-info {
+    max-width: 650px;
+}
+
+.movie-info p {
+    max-width: 650px;
+    margin-bottom: 10px;
+    color: #ddd;
+    line-height: 1.6;
+}
+
+.movie-info b {
+    color: #fff;
+}
+
+.rating {
+    display: inline-block;
+    margin-bottom: 15px;
+    color: #e50914;
+    font-weight: bold;
+}
+
 /* ================= RESPONSIVE ================= */
 
 @media (max-width: 900px) {
